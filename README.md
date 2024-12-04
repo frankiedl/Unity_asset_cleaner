@@ -1,25 +1,31 @@
 # Unity Asset Cleaner
 
-A Unity Editor tool to safely find and remove unused assets from your project. It features a user-friendly interface with checkboxes for selection, automatic backup creation, and smart asset detection.
+A Unity Editor tool to safely find and remove unused assets from your project based on scene dependencies. It features a scene-based cleaning approach, automated backup system, and empty folder cleanup.
 
-![Unity Asset Cleaner Interface](insert_screenshot_here)
+![Unity Asset Cleaner Interface](![image](https://github.com/user-attachments/assets/b8e49761-1011-4135-822a-a21e689440ea)
+)
 
 ## Features
 
+- **Scene-Based Analysis**:
+  - Select specific scenes to preserve assets from
+  - Automatic current scene detection
+  - Build settings scenes integration
+  - Project-wide scene discovery
+
 - **Smart Asset Detection**:
-  - Analyzes all scenes in build settings
-  - Analyzes currently open scene
-  - Resources folder analysis
-  - Scene objects and dependencies
-  - Double verification for materials in use
+  - Analyzes dependencies for selected scenes
+  - Safe script detection (won't delete itself)
+  - Empty folder cleanup
+  - Deep dependency checking for materials and prefabs
 
 - **User-Friendly Interface**:
+  - Scene selection panel with Select/Deselect All
   - Checkbox selection for each asset
   - Quick deselection with red "X" button
-  - Select/Deselect All button
+  - Asset preview
   - Asset count display
-  - Assets preview
-  - Big red delete button for marked assets
+  - Clear deletion confirmation
 
 - **Supported Asset Types**:
   - Scripts (.cs)
@@ -32,8 +38,9 @@ A Unity Editor tool to safely find and remove unused assets from your project. I
   - Automated backup system with timestamps
   - Full directory structure preservation in backups
   - Dependencies backup for materials and prefabs
-  - Double verification for materials in use
+  - Protection against deleting the cleaner script itself
   - Confirmation dialogs before deletion
+  - Empty folder cleanup (optional)
 
 ## Installation
 
@@ -48,11 +55,14 @@ A Unity Editor tool to safely find and remove unused assets from your project. I
 1. In Unity, go to the top menu
 2. Click on `Tools > Asset Cleaner`
 
-### Configuration Options
+### Configuration
 
-#### Analysis Options:
-- **Include Current Scene**: Also analyze the scene currently open in the editor
-- **Check Resources Folder**: Consider assets in the Resources folder as used
+#### Scene Selection:
+- Use the "Scenes to Preserve" foldout to select which scenes to analyze
+- The current scene is automatically detected and selected
+- All scenes from build settings are listed
+- Use "Refresh Scene List" to update the scene list
+- Use "Select/Deselect All Scenes" for quick configuration
 
 #### Asset Types to Check:
 - **Scripts**: C# script files
@@ -61,63 +71,71 @@ A Unity Editor tool to safely find and remove unused assets from your project. I
 - **Audio**: Sound files (MP3, WAV, OGG)
 - **Prefabs**: Prefab assets
 
-#### Backup Options:
+#### Cleaning Options:
 - **Create Backup Before Deleting**: Enable/disable automatic backup
+- **Delete Empty Folders**: Remove empty folders after asset deletion
 - **Backup Folder**: Specify the folder path for backups (default: "Assets/_DeletedAssetsBackup")
 
-### Using the Tool
+### Workflow
 
-1. **Configure Settings**:
-   - Select which types of assets to analyze
+1. **Configure Scene Selection**:
+   - Expand "Scenes to Preserve"
+   - Select the scenes whose assets you want to keep
+   - Use the "Select All" or "Deselect All" buttons as needed
+
+2. **Set Up Options**:
+   - Choose which types of assets to analyze
    - Configure backup options
-   - Make sure "Include Current Scene" is checked if you want to analyze the open scene
+   - Decide if empty folders should be cleaned
 
-2. **Find Unused Assets**:
-   - Click the "Find Unused Assets" button
-   - The tool will analyze your project and list potentially unused assets
+3. **Find Unused Assets**:
+   - Click "Find Unused Assets"
+   - The tool will analyze your project based on selected scenes
+   - Assets used in selected scenes are protected
 
-3. **Select Assets for Deletion**:
+4. **Review Assets**:
    - Use checkboxes to mark/unmark assets for deletion
    - Use the red "X" button to quickly unmark assets
+   - Preview assets to verify selection
    - Use "Select All/Deselect All" for batch selection
-   - Review the count of marked assets at the bottom
 
-4. **Delete Assets**:
-   - Click the "Delete Marked Assets" button
-   - Confirm the deletion in the popup dialog
-   - If backup is enabled, assets will be backed up before deletion
+5. **Delete Assets**:
+   - Click "Delete Marked Assets"
+   - Confirm the deletion
+   - If backup is enabled, assets will be backed up first
+   - Empty folders will be cleaned if the option is enabled
 
 ### Backup System
 
-- Creates timestamped folders for each deletion operation
-- Maintains original folder structure
-- For materials and prefabs, also backs up dependencies
-- Backups are stored in the specified backup folder
-- Each backup includes full asset path structure
+The backup system creates:
+- Timestamped folders for each deletion operation
+- Complete folder structure preservation
+- Dependency backups for materials and prefabs
+- Automatic backup folder creation if it doesn't exist
 
 ## Best Practices
 
 1. **Before Using**:
    - Make a full project backup
-   - Ensure all relevant scenes are included in build settings
    - Close unnecessary scenes
+   - Review your build settings scenes
 
 2. **During Use**:
-   - Keep "Include Current Scene" option enabled
-   - Enable backup system for safe deletion
+   - Carefully select which scenes to preserve
+   - Enable backup system for first few uses
    - Review each asset before marking for deletion
-   - Use the preview to verify assets
+   - Pay special attention to shared assets
 
 3. **After Cleaning**:
    - Test your project thoroughly
-   - Verify that all scenes still work correctly
-   - Keep backups until you're sure everything works
+   - Verify that all selected scenes work correctly
+   - Keep backups until everything is verified
 
 ## Limitations
 
 - Dynamic asset loading (using `Resources.Load` or Addressables) might not be detected
 - Assets referenced only through reflection or string paths might be marked as unused
-- Scene-specific assets might require the relevant scene to be included in build settings
+- Scenes not selected for preservation will have their unique assets marked as unused
 
 ## Troubleshooting
 
@@ -140,6 +158,12 @@ This tool is released under the MIT License. Feel free to use it in your project
 
 ## Version History
 
+- 2.0.0
+  - Added scene-based analysis
+  - Added empty folder cleanup
+  - Added self-protection for the cleaner script
+  - Improved UI with helpbox styling
+  - Added quick scene selection tools
 - 1.1.0
   - Added checkbox interface
   - Added Select All/Deselect All feature
