@@ -9,17 +9,18 @@ public class AssetCleaner : EditorWindow
 {
     private Vector2 scrollPosition;
     private Dictionary<string, bool> assetsToDelete = new Dictionary<string, bool>();
+    private Dictionary<string, bool> scenesToInclude = new Dictionary<string, bool>();
     private bool includeScripts = true;
     private bool includeTextures = true;
     private bool includeMaterials = true;
     private bool includeAudio = true;
     private bool includePrefabs = true;
-    private bool includeCurrentScene = true;
-    private bool analyzeResources = true;
     private bool createBackupBeforeDelete = true;
+    private bool deleteEmptyFolders = true;
     private string backupFolderPath = "Assets/_DeletedAssetsBackup";
     private GUIStyle redXStyle;
     private bool selectAll = true;
+    private bool sceneFoldout = true;
 
     [MenuItem("Tools/Asset Cleaner")]
     public static void ShowWindow()
@@ -33,6 +34,49 @@ public class AssetCleaner : EditorWindow
         redXStyle.normal.textColor = Color.red;
         redXStyle.fontSize = 12;
         redXStyle.fontStyle = FontStyle.Bold;
+        RefreshSceneList();
+    }
+
+    private string GetCurrentScriptPath()
+    {
+        var scriptGUID = AssetDatabase.FindAssets("t:Script AssetCleaner").FirstOrDefault();
+        if (scriptGUID != null)
+        {
+            return AssetDatabase.GUIDToAssetPath(scriptGUID);
+        }
+        return null;
+    }
+
+    private void RefreshSceneList()
+    {
+        scenesToInclude.Clear();
+
+        // Añadir la escena actual
+        string currentScene = EditorSceneManager.GetActiveScene().path;
+        if (!string.IsNullOrEmpty(currentScene))
+        {
+            scenesToInclude[currentScene] = true;
+        }
+
+        // Añadir todas las escenas en build settings
+        foreach (var scene in EditorBuildSettings.scenes)
+        {
+            if (!scenesToInclude.ContainsKey(scene.path))
+            {
+                scenesToInclude[scene.path] = scene.enabled;
+            }
+        }
+
+        // Buscar todas las escenas en el proyecto
+        string[] allScenes = AssetDatabase.FindAssets("t:Scene");
+        foreach (string guid in allScenes)
+        {
+            string scenePath = AssetDatabase.GUIDToAssetPath(guid);
+            if (!scenesToInclude.ContainsKey(scenePath))
+            {
+                scenesToInclude[scenePath] = false;
+            }
+        }
     }
 
     private void OnGUI()
@@ -40,42 +84,93 @@ public class AssetCleaner : EditorWindow
         GUILayout.Label("Asset Cleaner", EditorStyles.boldLabel);
 
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Analysis Options:", EditorStyles.boldLabel);
-        
-        includeCurrentScene = EditorGUILayout.Toggle("Include Current Scene", includeCurrentScene);
-        analyzeResources = EditorGUILayout.Toggle("Check Resources Folder", analyzeResources);
-        
+        sceneFoldout = EditorGUILayout.Foldout(sceneFoldout, "Scenes to Preserve:", true);
+        if (sceneFoldout)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Select All Scenes"))
+            {
+                foreach (var key in scenesToInclude.Keys.ToList())
+                {
+                    scenesToInclude[key] = true;
+                }
+            }
+            if (GUILayout.Button("Deselect All Scenes"))
+            {
+                foreach (var key in scenesToInclude.Keys.ToList())
+                {
+                    scenesToInclude[key] = false;
+                }
+            }
+            if (GUILayout.Button("Refresh Scene List"))
+            {
+                RefreshSceneList();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(150));
+            foreach (var scene in scenesToInclude.ToList())
+            {
+                EditorGUILayout.BeginHorizontal();
+                bool isIncluded = EditorGUILayout.Toggle(scene.Value, GUILayout.Width(20));
+                if (isIncluded != scene.Value)
+                {
+                    scenesToInclude[scene.Key] = isIncluded;
+                }
+                EditorGUILayout.LabelField(scene.Key);
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndScrollView();
+            
+            EditorGUILayout.EndVertical();
+            EditorGUI.indentLevel--;
+        }
+
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Asset Types to Check:", EditorStyles.boldLabel);
         
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         includeScripts = EditorGUILayout.Toggle("Scripts", includeScripts);
         includeTextures = EditorGUILayout.Toggle("Textures", includeTextures);
         includeMaterials = EditorGUILayout.Toggle("Materials", includeMaterials);
         includeAudio = EditorGUILayout.Toggle("Audio", includeAudio);
         includePrefabs = EditorGUILayout.Toggle("Prefabs", includePrefabs);
+        EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Backup Options:", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Cleaning Options:", EditorStyles.boldLabel);
+        
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         createBackupBeforeDelete = EditorGUILayout.Toggle("Create Backup Before Deleting", createBackupBeforeDelete);
+        deleteEmptyFolders = EditorGUILayout.Toggle("Delete Empty Folders", deleteEmptyFolders);
+        
         if (createBackupBeforeDelete)
         {
             EditorGUI.indentLevel++;
             backupFolderPath = EditorGUILayout.TextField("Backup Folder", backupFolderPath);
             EditorGUI.indentLevel--;
         }
+        EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox("Make sure to backup your project before deleting assets!", MessageType.Warning);
 
-        if (GUILayout.Button("Find Unused Assets"))
+        if (GUILayout.Button("Find Unused Assets", GUILayout.Height(30)))
         {
             FindUnusedAssets();
         }
 
-        EditorGUILayout.Space();
+        DrawAssetList();
+    }
 
+    private void DrawAssetList()
+    {
         if (assetsToDelete.Count > 0)
         {
+            EditorGUILayout.Space();
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Found {assetsToDelete.Count} potentially unused assets:", EditorStyles.boldLabel);
             
@@ -89,24 +184,22 @@ public class AssetCleaner : EditorWindow
             }
             EditorGUILayout.EndHorizontal();
 
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
             
             foreach (var assetEntry in assetsToDelete.ToList())
             {
                 EditorGUILayout.BeginHorizontal();
                 
-                // Checkbox
                 bool isMarked = EditorGUILayout.Toggle(assetEntry.Value, GUILayout.Width(20));
                 if (isMarked != assetEntry.Value)
                 {
                     assetsToDelete[assetEntry.Key] = isMarked;
                 }
 
-                // Asset preview
                 Object assetObject = AssetDatabase.LoadAssetAtPath<Object>(assetEntry.Key);
                 EditorGUILayout.ObjectField(assetObject, typeof(Object), false);
                 
-                // Red X button
                 if (GUILayout.Button("✕", redXStyle, GUILayout.Width(20)))
                 {
                     assetsToDelete[assetEntry.Key] = false;
@@ -116,6 +209,7 @@ public class AssetCleaner : EditorWindow
             }
             
             EditorGUILayout.EndScrollView();
+            EditorGUILayout.EndVertical();
 
             EditorGUILayout.Space();
 
@@ -126,11 +220,62 @@ public class AssetCleaner : EditorWindow
             }
             GUI.backgroundColor = Color.white;
 
-            // Show count of marked assets
             int markedCount = assetsToDelete.Count(x => x.Value);
             if (markedCount > 0)
             {
                 EditorGUILayout.HelpBox($"Assets marked for deletion: {markedCount}", MessageType.Info);
+            }
+        }
+    }
+
+    private void FindUnusedAssets()
+    {
+        assetsToDelete.Clear();
+        HashSet<string> usedAssets = new HashSet<string>();
+        
+        // Proteger el script actual
+        string currentScriptPath = GetCurrentScriptPath();
+        if (currentScriptPath != null)
+        {
+            usedAssets.Add(currentScriptPath);
+        }
+        
+        // Analizar las escenas seleccionadas
+        foreach (var sceneEntry in scenesToInclude.Where(s => s.Value))
+        {
+            if (string.IsNullOrEmpty(sceneEntry.Key)) continue;
+            
+            string[] dependencies = AssetDatabase.GetDependencies(sceneEntry.Key, true);
+            foreach (string dependency in dependencies)
+            {
+                usedAssets.Add(dependency);
+            }
+        }
+
+        // Get all project assets
+        string[] allAssets = AssetDatabase.GetAllAssetPaths();
+
+        // Check each asset
+        foreach (string asset in allAssets)
+        {
+            if (!asset.StartsWith("Assets/") || 
+                string.IsNullOrEmpty(Path.GetExtension(asset)) || 
+                asset.EndsWith(".unity") ||
+                asset == currentScriptPath)
+                continue;
+
+            bool shouldCheck = false;
+            string extension = Path.GetExtension(asset).ToLower();
+
+            if (includeScripts && extension == ".cs") shouldCheck = true;
+            else if (includeTextures && (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")) shouldCheck = true;
+            else if (includeMaterials && extension == ".mat") shouldCheck = true;
+            else if (includeAudio && (extension == ".mp3" || extension == ".wav" || extension == ".ogg")) shouldCheck = true;
+            else if (includePrefabs && extension == ".prefab") shouldCheck = true;
+
+            if (shouldCheck && !usedAssets.Contains(asset))
+            {
+                assetsToDelete.Add(asset, true);
             }
         }
     }
@@ -145,22 +290,62 @@ public class AssetCleaner : EditorWindow
             return;
         }
 
+        string currentScriptPath = GetCurrentScriptPath();
+        if (currentScriptPath != null && assetsToDelete.Any(x => x.Value && x.Key == currentScriptPath))
+        {
+            EditorUtility.DisplayDialog("Warning", 
+                "Cannot delete the Asset Cleaner script while it's running.", 
+                "OK");
+            return;
+        }
+
         if (EditorUtility.DisplayDialog("Confirm Delete",
             $"Are you sure you want to delete {assetsToDelete.Count(x => x.Value)} assets?" +
             (createBackupBeforeDelete ? "\nA backup will be created before deletion." : "\nThis action cannot be undone!"),
             "Delete",
             "Cancel"))
         {
-            foreach (var asset in assetsToDelete.Where(x => x.Value).ToList())
+            if (createBackupBeforeDelete)
             {
-                if (createBackupBeforeDelete)
+                foreach (var asset in assetsToDelete.Where(x => x.Value))
                 {
                     CreateBackup(asset.Key);
                 }
+            }
+
+            foreach (var asset in assetsToDelete.Where(x => x.Value).ToList())
+            {
                 AssetDatabase.DeleteAsset(asset.Key);
                 assetsToDelete.Remove(asset.Key);
             }
+
+            if (deleteEmptyFolders)
+            {
+                DeleteEmptyFolders("Assets");
+            }
+
             AssetDatabase.Refresh();
+        }
+    }
+
+    private void DeleteEmptyFolders(string startPath)
+    {
+        if (!Directory.Exists(startPath)) return;
+
+        foreach (var dir in Directory.GetDirectories(startPath))
+        {
+            DeleteEmptyFolders(dir);
+        }
+
+        if (startPath != "Assets" && Directory.GetFiles(startPath).Length == 0 && 
+            Directory.GetDirectories(startPath).Length == 0)
+        {
+            Directory.Delete(startPath);
+            string metaFile = startPath + ".meta";
+            if (File.Exists(metaFile))
+            {
+                File.Delete(metaFile);
+            }
         }
     }
 
@@ -168,33 +353,28 @@ public class AssetCleaner : EditorWindow
     {
         try
         {
-            // Ensure backup folder exists
             if (!Directory.Exists(backupFolderPath))
             {
                 Directory.CreateDirectory(backupFolderPath);
                 AssetDatabase.Refresh();
             }
 
-            // Create timestamp subfolder
             string timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             string backupSubFolder = Path.Combine(backupFolderPath, timestamp);
+            
             if (!Directory.Exists(backupSubFolder))
             {
                 Directory.CreateDirectory(backupSubFolder);
             }
 
-            // Get relative path within Assets folder
             string relativePath = assetPath.Replace("Assets/", "");
             string targetPath = Path.Combine(backupSubFolder, relativePath);
-
-            // Create necessary subdirectories
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
-
-            // Copy the asset
             File.Copy(assetPath, targetPath);
-            
-            // If it's a material or prefab, we need to copy its dependencies too
-            if (Path.GetExtension(assetPath).ToLower() == ".mat" || Path.GetExtension(assetPath).ToLower() == ".prefab")
+
+            // Backup dependencies for materials and prefabs
+            if (Path.GetExtension(assetPath).ToLower() == ".mat" || 
+                Path.GetExtension(assetPath).ToLower() == ".prefab")
             {
                 string[] dependencies = AssetDatabase.GetDependencies(assetPath, true);
                 foreach (string dependency in dependencies)
@@ -209,118 +389,11 @@ public class AssetCleaner : EditorWindow
                 }
             }
 
-            AssetDatabase.Refresh();
             Debug.Log($"Backup created at: {backupSubFolder}");
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error creating backup: {e.Message}");
-            if (!EditorUtility.DisplayDialog("Backup Failed",
-                "Failed to create backup. Do you want to proceed with deletion anyway?",
-                "Delete Without Backup",
-                "Cancel"))
-            {
-                return;
-            }
-        }
-    }
-
-    private void FindUnusedAssets()
-    {
-        assetsToDelete.Clear();
-        HashSet<string> usedAssets = new HashSet<string>();
-        
-        // Get all scenes in build settings
-        var scenePaths = EditorBuildSettings.scenes
-            .Where(scene => scene.enabled)
-            .Select(scene => scene.path)
-            .ToList();
-
-        // Add current scene if it's not already included
-        if (includeCurrentScene)
-        {
-            string currentScenePath = EditorSceneManager.GetActiveScene().path;
-            if (!string.IsNullOrEmpty(currentScenePath) && !scenePaths.Contains(currentScenePath))
-            {
-                scenePaths.Add(currentScenePath);
-            }
-        }
-
-        // Analyze all scenes
-        foreach (string scenePath in scenePaths)
-        {
-            if (string.IsNullOrEmpty(scenePath)) continue;
-            
-            // Get all dependencies from the scene
-            string[] dependencies = AssetDatabase.GetDependencies(scenePath, true);
-            foreach (string dependency in dependencies)
-            {
-                usedAssets.Add(dependency);
-            }
-        }
-
-        // Check Resources folder if enabled
-        if (analyzeResources)
-        {
-            var resourcesFolder = "Assets/Resources";
-            if (Directory.Exists(resourcesFolder))
-            {
-                string[] resourcesAssets = AssetDatabase.FindAssets("", new[] { resourcesFolder });
-                foreach (string guid in resourcesAssets)
-                {
-                    string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                    usedAssets.Add(assetPath);
-                }
-            }
-        }
-
-        // Get all project assets
-        string[] allAssets = AssetDatabase.GetAllAssetPaths();
-
-        // Check each asset
-        foreach (string asset in allAssets)
-        {
-            // Skip built-in assets, folders, and scenes
-            if (!asset.StartsWith("Assets/") || 
-                string.IsNullOrEmpty(Path.GetExtension(asset)) || 
-                asset.EndsWith(".unity"))
-                continue;
-
-            bool shouldCheck = false;
-            string extension = Path.GetExtension(asset).ToLower();
-
-            // Check based on file type and user preferences
-            if (includeScripts && extension == ".cs") shouldCheck = true;
-            else if (includeTextures && (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")) shouldCheck = true;
-            else if (includeMaterials && extension == ".mat") shouldCheck = true;
-            else if (includeAudio && (extension == ".mp3" || extension == ".wav" || extension == ".ogg")) shouldCheck = true;
-            else if (includePrefabs && extension == ".prefab") shouldCheck = true;
-
-            if (shouldCheck && !usedAssets.Contains(asset))
-            {
-                // Double check for materials - look for references in scene objects
-                if (extension == ".mat")
-                {
-                    bool materialInUse = false;
-                    var allGameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
-                    foreach (var go in allGameObjects)
-                    {
-                        var renderers = go.GetComponentsInChildren<Renderer>(true);
-                        foreach (var renderer in renderers)
-                        {
-                            if (renderer.sharedMaterials.Any(m => m != null && AssetDatabase.GetAssetPath(m) == asset))
-                            {
-                                materialInUse = true;
-                                break;
-                            }
-                        }
-                        if (materialInUse) break;
-                    }
-                    if (materialInUse) continue;
-                }
-
-                assetsToDelete.Add(asset, true);
-            }
+            Debug.LogError($"Error creating backup for {assetPath}: {e.Message}");
         }
     }
 }
