@@ -8,7 +8,7 @@ using System.IO;
 public class AssetCleaner : EditorWindow
 {
     private Vector2 scrollPosition;
-    private List<string> unusedAssets = new List<string>();
+    private Dictionary<string, bool> assetsToDelete = new Dictionary<string, bool>();
     private bool includeScripts = true;
     private bool includeTextures = true;
     private bool includeMaterials = true;
@@ -18,11 +18,21 @@ public class AssetCleaner : EditorWindow
     private bool analyzeResources = true;
     private bool createBackupBeforeDelete = true;
     private string backupFolderPath = "Assets/_DeletedAssetsBackup";
+    private GUIStyle redXStyle;
+    private bool selectAll = true;
 
     [MenuItem("Tools/Asset Cleaner")]
     public static void ShowWindow()
     {
         GetWindow<AssetCleaner>("Asset Cleaner");
+    }
+
+    private void OnEnable()
+    {
+        redXStyle = new GUIStyle();
+        redXStyle.normal.textColor = Color.red;
+        redXStyle.fontSize = 12;
+        redXStyle.fontStyle = FontStyle.Bold;
     }
 
     private void OnGUI()
@@ -64,52 +74,93 @@ public class AssetCleaner : EditorWindow
 
         EditorGUILayout.Space();
 
-        if (unusedAssets.Count > 0)
+        if (assetsToDelete.Count > 0)
         {
-            EditorGUILayout.LabelField($"Found {unusedAssets.Count} potentially unused assets:", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField($"Found {assetsToDelete.Count} potentially unused assets:", EditorStyles.boldLabel);
             
+            if (GUILayout.Button(selectAll ? "Deselect All" : "Select All", GUILayout.Width(100)))
+            {
+                selectAll = !selectAll;
+                foreach (var asset in assetsToDelete.Keys.ToList())
+                {
+                    assetsToDelete[asset] = selectAll;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
             
-            foreach (string asset in unusedAssets.ToList())
+            foreach (var assetEntry in assetsToDelete.ToList())
             {
                 EditorGUILayout.BeginHorizontal();
                 
-                Object assetObject = AssetDatabase.LoadAssetAtPath<Object>(asset);
+                // Checkbox
+                bool isMarked = EditorGUILayout.Toggle(assetEntry.Value, GUILayout.Width(20));
+                if (isMarked != assetEntry.Value)
+                {
+                    assetsToDelete[assetEntry.Key] = isMarked;
+                }
+
+                // Asset preview
+                Object assetObject = AssetDatabase.LoadAssetAtPath<Object>(assetEntry.Key);
                 EditorGUILayout.ObjectField(assetObject, typeof(Object), false);
                 
-                if (GUILayout.Button("Delete", GUILayout.Width(60)))
+                // Red X button
+                if (GUILayout.Button("✕", redXStyle, GUILayout.Width(20)))
                 {
-                    DeleteAssetWithBackup(asset);
-                }
-                
-                if (GUILayout.Button("Keep", GUILayout.Width(60)))
-                {
-                    unusedAssets.Remove(asset);
-                    GUIUtility.ExitGUI();
+                    assetsToDelete[assetEntry.Key] = false;
                 }
                 
                 EditorGUILayout.EndHorizontal();
             }
             
             EditorGUILayout.EndScrollView();
+
+            EditorGUILayout.Space();
+
+            GUI.backgroundColor = Color.red;
+            if (GUILayout.Button("Delete Marked Assets", GUILayout.Height(30)))
+            {
+                DeleteMarkedAssets();
+            }
+            GUI.backgroundColor = Color.white;
+
+            // Show count of marked assets
+            int markedCount = assetsToDelete.Count(x => x.Value);
+            if (markedCount > 0)
+            {
+                EditorGUILayout.HelpBox($"Assets marked for deletion: {markedCount}", MessageType.Info);
+            }
         }
     }
 
-    private void DeleteAssetWithBackup(string assetPath)
+    private void DeleteMarkedAssets()
     {
+        if (!assetsToDelete.Any(x => x.Value))
+        {
+            EditorUtility.DisplayDialog("No Assets Selected", 
+                "Please select assets to delete first.", 
+                "OK");
+            return;
+        }
+
         if (EditorUtility.DisplayDialog("Confirm Delete",
-            $"Are you sure you want to delete {Path.GetFileName(assetPath)}?" +
+            $"Are you sure you want to delete {assetsToDelete.Count(x => x.Value)} assets?" +
             (createBackupBeforeDelete ? "\nA backup will be created before deletion." : "\nThis action cannot be undone!"),
             "Delete",
             "Cancel"))
         {
-            if (createBackupBeforeDelete)
+            foreach (var asset in assetsToDelete.Where(x => x.Value).ToList())
             {
-                CreateBackup(assetPath);
+                if (createBackupBeforeDelete)
+                {
+                    CreateBackup(asset.Key);
+                }
+                AssetDatabase.DeleteAsset(asset.Key);
+                assetsToDelete.Remove(asset.Key);
             }
-            AssetDatabase.DeleteAsset(assetPath);
-            unusedAssets.Remove(assetPath);
-            GUIUtility.ExitGUI();
+            AssetDatabase.Refresh();
         }
     }
 
@@ -176,7 +227,7 @@ public class AssetCleaner : EditorWindow
 
     private void FindUnusedAssets()
     {
-        unusedAssets.Clear();
+        assetsToDelete.Clear();
         HashSet<string> usedAssets = new HashSet<string>();
         
         // Get all scenes in build settings
@@ -211,11 +262,15 @@ public class AssetCleaner : EditorWindow
         // Check Resources folder if enabled
         if (analyzeResources)
         {
-            string[] resourcesAssets = AssetDatabase.FindAssets("", new[] { "Assets/Resources" });
-            foreach (string guid in resourcesAssets)
+            var resourcesFolder = "Assets/Resources";
+            if (Directory.Exists(resourcesFolder))
             {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                usedAssets.Add(assetPath);
+                string[] resourcesAssets = AssetDatabase.FindAssets("", new[] { resourcesFolder });
+                foreach (string guid in resourcesAssets)
+                {
+                    string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                    usedAssets.Add(assetPath);
+                }
             }
         }
 
@@ -264,7 +319,7 @@ public class AssetCleaner : EditorWindow
                     if (materialInUse) continue;
                 }
 
-                unusedAssets.Add(asset);
+                assetsToDelete.Add(asset, true);
             }
         }
     }
