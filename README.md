@@ -1,14 +1,25 @@
 # Unity Asset Cleaner
 
-A Unity Editor tool to help you find and safely remove unused assets from your project. It includes features like scene analysis, backup creation, and selective cleaning based on asset types.
+A Unity Editor tool to safely find and remove unused assets from your project. It features a user-friendly interface with checkboxes for selection, automatic backup creation, and smart asset detection.
+
+![Unity Asset Cleaner Interface](insert_screenshot_here)
 
 ## Features
 
-- **Smart Asset Detection**: Analyzes assets across multiple sources:
-  - All scenes in build settings
-  - Currently open scene
-  - Resources folder
-  - Scene objects and their dependencies
+- **Smart Asset Detection**:
+  - Analyzes all scenes in build settings
+  - Analyzes currently open scene
+  - Resources folder analysis
+  - Scene objects and dependencies
+  - Double verification for materials in use
+
+- **User-Friendly Interface**:
+  - Checkbox selection for each asset
+  - Quick deselection with red "X" button
+  - Select/Deselect All button
+  - Asset count display
+  - Assets preview
+  - Big red delete button for marked assets
 
 - **Supported Asset Types**:
   - Scripts (.cs)
@@ -19,10 +30,10 @@ A Unity Editor tool to help you find and safely remove unused assets from your p
 
 - **Safety Features**:
   - Automated backup system with timestamps
-  - "Keep" button for assets you want to preserve
+  - Full directory structure preservation in backups
+  - Dependencies backup for materials and prefabs
   - Double verification for materials in use
-  - Dependency tracking for complex assets
-  - Backup of asset dependencies for materials and prefabs
+  - Confirmation dialogs before deletion
 
 ## Installation
 
@@ -58,23 +69,31 @@ A Unity Editor tool to help you find and safely remove unused assets from your p
 
 1. **Configure Settings**:
    - Select which types of assets to analyze
-   - Configure backup options if desired
+   - Configure backup options
    - Make sure "Include Current Scene" is checked if you want to analyze the open scene
 
 2. **Find Unused Assets**:
    - Click the "Find Unused Assets" button
    - The tool will analyze your project and list potentially unused assets
 
-3. **Review Results**:
-   - Each asset will be displayed with preview
-   - Use the "Keep" button for assets you want to retain
-   - Use the "Delete" button to remove assets
+3. **Select Assets for Deletion**:
+   - Use checkboxes to mark/unmark assets for deletion
+   - Use the red "X" button to quickly unmark assets
+   - Use "Select All/Deselect All" for batch selection
+   - Review the count of marked assets at the bottom
 
-4. **Backup System**:
-   - When deleting with backup enabled, assets are copied to a timestamped folder
-   - The backup maintains the original folder structure
-   - For materials and prefabs, dependencies are also backed up
-   - Backups are organized by date and time
+4. **Delete Assets**:
+   - Click the "Delete Marked Assets" button
+   - Confirm the deletion in the popup dialog
+   - If backup is enabled, assets will be backed up before deletion
+
+### Backup System
+
+- Creates timestamped folders for each deletion operation
+- Maintains original folder structure
+- For materials and prefabs, also backs up dependencies
+- Backups are stored in the specified backup folder
+- Each backup includes full asset path structure
 
 ## Best Practices
 
@@ -84,14 +103,15 @@ A Unity Editor tool to help you find and safely remove unused assets from your p
    - Close unnecessary scenes
 
 2. **During Use**:
-   - Keep the "Include Current Scene" option enabled
+   - Keep "Include Current Scene" option enabled
    - Enable backup system for safe deletion
-   - Review each asset before deletion
-   - Use the "Keep" button if unsure about an asset
+   - Review each asset before marking for deletion
+   - Use the preview to verify assets
 
 3. **After Cleaning**:
    - Test your project thoroughly
-   - Backup folders can be safely removed after verifying everything works
+   - Verify that all scenes still work correctly
+   - Keep backups until you're sure everything works
 
 ## Limitations
 
@@ -105,6 +125,7 @@ If you accidentally delete needed assets:
 1. Go to the backup folder (default: "Assets/_DeletedAssetsBackup")
 2. Find the timestamp folder from when the deletion occurred
 3. Copy the needed assets back to their original location
+4. Click Assets > Refresh in Unity
 
 ## Contributing
 
@@ -116,3 +137,13 @@ Feel free to contribute to this project by:
 ## License
 
 This tool is released under the MIT License. Feel free to use it in your projects.
+
+## Version History
+
+- 1.1.0
+  - Added checkbox interface
+  - Added Select All/Deselect All feature
+  - Improved material detection
+  - Added backup system
+- 1.0.0
+  - Initial release
