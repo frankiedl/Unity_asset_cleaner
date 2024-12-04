@@ -2,7 +2,7 @@
 
 A Unity Editor tool to safely find and remove unused assets from your project based on scene dependencies. It features a scene-based cleaning approach, automated backup system, and empty folder cleanup.
 
-(![interface](https://github.com/user-attachments/assets/e287535b-4ad5-47a8-bf26-a7e82f6184cb)
+(![interface] https://github.com/user-attachments/assets/e287535b-4ad5-47a8-bf26-a7e82f6184cb
 
 ## Features
 
