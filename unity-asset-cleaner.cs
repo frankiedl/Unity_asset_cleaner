@@ -174,4 +174,98 @@ public class AssetCleaner : EditorWindow
         }
     }
 
-    // ... [Resto del código FindUnusedAssets permanece igual]
+    private void FindUnusedAssets()
+    {
+        unusedAssets.Clear();
+        HashSet<string> usedAssets = new HashSet<string>();
+        
+        // Get all scenes in build settings
+        var scenePaths = EditorBuildSettings.scenes
+            .Where(scene => scene.enabled)
+            .Select(scene => scene.path)
+            .ToList();
+
+        // Add current scene if it's not already included
+        if (includeCurrentScene)
+        {
+            string currentScenePath = EditorSceneManager.GetActiveScene().path;
+            if (!string.IsNullOrEmpty(currentScenePath) && !scenePaths.Contains(currentScenePath))
+            {
+                scenePaths.Add(currentScenePath);
+            }
+        }
+
+        // Analyze all scenes
+        foreach (string scenePath in scenePaths)
+        {
+            if (string.IsNullOrEmpty(scenePath)) continue;
+            
+            // Get all dependencies from the scene
+            string[] dependencies = AssetDatabase.GetDependencies(scenePath, true);
+            foreach (string dependency in dependencies)
+            {
+                usedAssets.Add(dependency);
+            }
+        }
+
+        // Check Resources folder if enabled
+        if (analyzeResources)
+        {
+            string[] resourcesAssets = AssetDatabase.FindAssets("", new[] { "Assets/Resources" });
+            foreach (string guid in resourcesAssets)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                usedAssets.Add(assetPath);
+            }
+        }
+
+        // Get all project assets
+        string[] allAssets = AssetDatabase.GetAllAssetPaths();
+
+        // Check each asset
+        foreach (string asset in allAssets)
+        {
+            // Skip built-in assets, folders, and scenes
+            if (!asset.StartsWith("Assets/") || 
+                string.IsNullOrEmpty(Path.GetExtension(asset)) || 
+                asset.EndsWith(".unity"))
+                continue;
+
+            bool shouldCheck = false;
+            string extension = Path.GetExtension(asset).ToLower();
+
+            // Check based on file type and user preferences
+            if (includeScripts && extension == ".cs") shouldCheck = true;
+            else if (includeTextures && (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")) shouldCheck = true;
+            else if (includeMaterials && extension == ".mat") shouldCheck = true;
+            else if (includeAudio && (extension == ".mp3" || extension == ".wav" || extension == ".ogg")) shouldCheck = true;
+            else if (includePrefabs && extension == ".prefab") shouldCheck = true;
+
+            if (shouldCheck && !usedAssets.Contains(asset))
+            {
+                // Double check for materials - look for references in scene objects
+                if (extension == ".mat")
+                {
+                    bool materialInUse = false;
+                    var allGameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+                    foreach (var go in allGameObjects)
+                    {
+                        var renderers = go.GetComponentsInChildren<Renderer>(true);
+                        foreach (var renderer in renderers)
+                        {
+                            if (renderer.sharedMaterials.Any(m => m != null && AssetDatabase.GetAssetPath(m) == asset))
+                            {
+                                materialInUse = true;
+                                break;
+                            }
+                        }
+                        if (materialInUse) break;
+                    }
+                    if (materialInUse) continue;
+                }
+
+                unusedAssets.Add(asset);
+            }
+        }
+    }
+}
